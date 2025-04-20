@@ -13,7 +13,7 @@ import asyncio
 load_dotenv()
 
 LIGHT_PINK = 0xFFB6C1
-FOOTER_TEXT = "programmed by @bossmannn"
+FOOTER_TEXT = "programmed by **@bossmannn**"
 TIMEZONE_FILE = "user_timezones.json"
 
 # Countries with single timezone
@@ -983,7 +983,7 @@ async def help_command(interaction: discord.Interaction):
     
     if interaction.user.id == int(os.getenv('BOT_OWNER_ID', '0')):
         embed.add_field(
-            name="👑 bossmans commands",
+            name="👑 bossman's commands",
             value="`/deploy <scope> [guild_id]` - deploy commands to current/specific server or globally\n"
                   "`/undeploy <scope> [guild_id]` - remove commands from current/specific server or globally\n"
                   "scopes: 'current server', 'specific server', 'global'",
