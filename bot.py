@@ -817,34 +817,114 @@ async def time_convert(
     
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="deploy_commands", description="deploy slash commands to the current server (owner only)")
-async def deploy_commands(interaction: discord.Interaction):
+@bot.tree.command(name="deploy", description="deploy slash commands (owner only)")
+@app_commands.describe(
+    scope="where to deploy commands",
+    guild_id="guild ID for specific server deployment (required for 'specific' scope)"
+)
+@app_commands.choices(
+    scope=[
+        app_commands.Choice(name="current server", value="current"),
+        app_commands.Choice(name="specific server", value="specific"),
+        app_commands.Choice(name="global", value="global")
+    ]
+)
+async def deploy(interaction: discord.Interaction, scope: app_commands.Choice[str], guild_id: str = None):
     if interaction.user.id != int(os.getenv('BOT_OWNER_ID', '0')):
         embed = create_embed("error", "only the bot owner can use this command")
         await interaction.response.send_message(embed=embed)
         return
     
     try:
-        # Sync commands to the current guild
-        await bot.tree.sync(guild=interaction.guild)
-        embed = create_embed("success", f"slash commands deployed to {interaction.guild.name}")
+        if scope.value == "current":
+            # Deploy to current guild
+            await bot.tree.sync(guild=interaction.guild)
+            embed = create_embed("success", f"slash commands deployed to {interaction.guild.name}")
+        
+        elif scope.value == "specific":
+            # Deploy to specific guild
+            if not guild_id:
+                embed = create_embed("error", "guild ID is required for specific server deployment")
+                await interaction.response.send_message(embed=embed)
+                return
+            
+            try:
+                guild = bot.get_guild(int(guild_id))
+                if not guild:
+                    embed = create_embed("error", f"could not find guild with ID {guild_id}")
+                    await interaction.response.send_message(embed=embed)
+                    return
+                
+                await bot.tree.sync(guild=guild)
+                embed = create_embed("success", f"slash commands deployed to {guild.name}")
+            except ValueError:
+                embed = create_embed("error", "invalid guild ID format")
+                await interaction.response.send_message(embed=embed)
+                return
+        
+        elif scope.value == "global":
+            # Deploy globally
+            await bot.tree.sync()
+            embed = create_embed("success", "slash commands deployed globally")
+    
     except Exception as e:
         embed = create_embed("error", f"failed to deploy commands: {str(e)}")
     
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="undeploy_commands", description="remove slash commands from the current server (owner only)")
-async def undeploy_commands(interaction: discord.Interaction):
+@bot.tree.command(name="undeploy", description="remove slash commands (owner only)")
+@app_commands.describe(
+    scope="where to remove commands from",
+    guild_id="guild ID for specific server undeployment (required for 'specific' scope)"
+)
+@app_commands.choices(
+    scope=[
+        app_commands.Choice(name="current server", value="current"),
+        app_commands.Choice(name="specific server", value="specific"),
+        app_commands.Choice(name="global", value="global")
+    ]
+)
+async def undeploy(interaction: discord.Interaction, scope: app_commands.Choice[str], guild_id: str = None):
     if interaction.user.id != int(os.getenv('BOT_OWNER_ID', '0')):
         embed = create_embed("error", "only the bot owner can use this command")
         await interaction.response.send_message(embed=embed)
         return
     
     try:
-        # Clear commands from the current guild
-        bot.tree.clear_commands(guild=interaction.guild)
-        await bot.tree.sync(guild=interaction.guild)
-        embed = create_embed("success", f"slash commands removed from {interaction.guild.name}")
+        if scope.value == "current":
+            # Remove from current guild
+            bot.tree.clear_commands(guild=interaction.guild)
+            await bot.tree.sync(guild=interaction.guild)
+            embed = create_embed("success", f"slash commands removed from {interaction.guild.name}")
+        
+        elif scope.value == "specific":
+            # Remove from specific guild
+            if not guild_id:
+                embed = create_embed("error", "guild ID is required for specific server undeployment")
+                await interaction.response.send_message(embed=embed)
+                return
+            
+            try:
+                guild = bot.get_guild(int(guild_id))
+                if not guild:
+                    embed = create_embed("error", f"could not find guild with ID {guild_id}")
+                    await interaction.response.send_message(embed=embed)
+                    return
+                
+                bot.tree.clear_commands(guild=guild)
+                await bot.tree.sync(guild=guild)
+                embed = create_embed("success", f"slash commands removed from {guild.name}")
+            except ValueError:
+                embed = create_embed("error", "invalid guild ID format")
+                await interaction.response.send_message(embed=embed)
+                return
+        
+        elif scope.value == "global":
+            # Remove globally
+            bot.tree.clear_commands(guild=None)
+            await bot.tree.sync()
+            embed = create_embed("success", "slash commands removed globally")
+    
     except Exception as e:
         embed = create_embed("error", f"failed to remove commands: {str(e)}")
     
@@ -904,8 +984,9 @@ async def help_command(interaction: discord.Interaction):
     if interaction.user.id == int(os.getenv('BOT_OWNER_ID', '0')):
         embed.add_field(
             name="👑 owner commands",
-            value="`/deploy_commands` - deploy commands to this server\n"
-                  "`/undeploy_commands` - remove commands from this server",
+            value="`/deploy <scope> [guild_id]` - deploy commands to current/specific server or globally\n"
+                  "`/undeploy <scope> [guild_id]` - remove commands from current/specific server or globally\n"
+                  "scopes: 'current server', 'specific server', 'global'",
             inline=False
         )
     

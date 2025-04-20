@@ -37,8 +37,14 @@ a discord bot that converts measurements, weight, and time across timezones with
   - `direction`: convert "to destination" or "from destination" (default: to destination)
 
 ### admin commands
-- `/deploy_commands` - deploy commands to a specific server (owner only)
-- `/undeploy_commands` - remove commands from a server (owner only)
+- `/deploy` - deploy commands with different scopes (owner only):
+  - `current server` - deploy to the current server you're in
+  - `specific server` - deploy to a specific server by ID
+  - `global` - deploy commands globally to all servers
+- `/undeploy` - remove commands with different scopes (owner only):
+  - `current server` - remove from current server
+  - `specific server` - remove from a specific server by ID
+  - `global` - remove globally from all servers
 
 ## features
 
