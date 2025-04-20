@@ -36,7 +36,7 @@ a discord bot that converts measurements, weight, and time across timezones with
   - `format`: choose 12-hour or 24-hour format (default: 24h)
   - `direction`: convert "to destination" or "from destination" (default: to destination)
 
-### admin commands
+### bossmans commands
 - `/deploy` - deploy commands with different scopes (owner only):
   - `current server` - deploy to the current server you're in
   - `specific server` - deploy to a specific server by ID

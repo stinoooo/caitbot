@@ -817,7 +817,7 @@ async def time_convert(
     
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="deploy", description="deploy slash commands (owner only)")
+@bot.tree.command(name="deploy", description="deploy slash commands (bossman only)")
 @app_commands.describe(
     scope="where to deploy commands",
     guild_id="guild ID for specific server deployment (required for 'specific' scope)"
@@ -831,7 +831,7 @@ async def time_convert(
 )
 async def deploy(interaction: discord.Interaction, scope: app_commands.Choice[str], guild_id: str = None):
     if interaction.user.id != int(os.getenv('BOT_OWNER_ID', '0')):
-        embed = create_embed("error", "only the bot owner can use this command")
+        embed = create_embed("error", "only the bossman can use this command")
         await interaction.response.send_message(embed=embed)
         return
     
@@ -872,7 +872,7 @@ async def deploy(interaction: discord.Interaction, scope: app_commands.Choice[st
     
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="undeploy", description="remove slash commands (owner only)")
+@bot.tree.command(name="undeploy", description="remove slash commands (bossman only)")
 @app_commands.describe(
     scope="where to remove commands from",
     guild_id="guild ID for specific server undeployment (required for 'specific' scope)"
@@ -886,7 +886,7 @@ async def deploy(interaction: discord.Interaction, scope: app_commands.Choice[st
 )
 async def undeploy(interaction: discord.Interaction, scope: app_commands.Choice[str], guild_id: str = None):
     if interaction.user.id != int(os.getenv('BOT_OWNER_ID', '0')):
-        embed = create_embed("error", "only the bot owner can use this command")
+        embed = create_embed("error", "only bossman can use this command")
         await interaction.response.send_message(embed=embed)
         return
     
@@ -983,7 +983,7 @@ async def help_command(interaction: discord.Interaction):
     
     if interaction.user.id == int(os.getenv('BOT_OWNER_ID', '0')):
         embed.add_field(
-            name="👑 owner commands",
+            name="👑 bossmans commands",
             value="`/deploy <scope> [guild_id]` - deploy commands to current/specific server or globally\n"
                   "`/undeploy <scope> [guild_id]` - remove commands from current/specific server or globally\n"
                   "scopes: 'current server', 'specific server', 'global'",
