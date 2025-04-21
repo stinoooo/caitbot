@@ -24,8 +24,8 @@ STATUS_LIST = [
     ("watching", "banjer"),
     ("listening", "lana del ray w caitlin"),
     ("watching", "taylor swift on tt"),
-    ("playing", "with banjer")
-    ("listening", "arctic monkeys w bossman"),
+    ("playing", "with banjer"),
+    ("listening", "arctic monkeys w bossman")
 
 ]
 
