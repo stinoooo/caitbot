@@ -1039,6 +1039,9 @@ async def deploy(interaction: discord.Interaction, scope: app_commands.Choice[st
         await interaction.response.send_message(embed=embed)
         return
     
+    # Defer the response immediately
+    await interaction.response.defer()
+    
     try:
         if scope.value == "current":
             # Deploy to current guild
@@ -1049,21 +1052,21 @@ async def deploy(interaction: discord.Interaction, scope: app_commands.Choice[st
             # Deploy to specific guild
             if not guild_id:
                 embed = create_embed("error", "guild ID is required for specific server deployment")
-                await interaction.response.send_message(embed=embed)
+                await interaction.followup.send(embed=embed)
                 return
             
             try:
                 guild = bot.get_guild(int(guild_id))
                 if not guild:
                     embed = create_embed("error", f"could not find guild with ID {guild_id}")
-                    await interaction.response.send_message(embed=embed)
+                    await interaction.followup.send(embed=embed)
                     return
                 
                 await bot.tree.sync(guild=guild)
                 embed = create_embed("success", f"slash commands deployed to {guild.name}")
             except ValueError:
                 embed = create_embed("error", "invalid guild ID format")
-                await interaction.response.send_message(embed=embed)
+                await interaction.followup.send(embed=embed)
                 return
         
         elif scope.value == "global":
@@ -1074,7 +1077,8 @@ async def deploy(interaction: discord.Interaction, scope: app_commands.Choice[st
     except Exception as e:
         embed = create_embed("error", f"failed to deploy commands: {str(e)}")
     
-    await interaction.response.send_message(embed=embed)
+    # Use followup.send since we deferred the response
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="undeploy", description="remove slash commands (bossman only)")
 @app_commands.describe(
@@ -1094,6 +1098,9 @@ async def undeploy(interaction: discord.Interaction, scope: app_commands.Choice[
         await interaction.response.send_message(embed=embed)
         return
     
+    # Defer the response immediately
+    await interaction.response.defer()
+    
     try:
         if scope.value == "current":
             # Remove from current guild
@@ -1105,14 +1112,14 @@ async def undeploy(interaction: discord.Interaction, scope: app_commands.Choice[
             # Remove from specific guild
             if not guild_id:
                 embed = create_embed("error", "guild ID is required for specific server undeployment")
-                await interaction.response.send_message(embed=embed)
+                await interaction.followup.send(embed=embed)
                 return
             
             try:
                 guild = bot.get_guild(int(guild_id))
                 if not guild:
                     embed = create_embed("error", f"could not find guild with ID {guild_id}")
-                    await interaction.response.send_message(embed=embed)
+                    await interaction.followup.send(embed=embed)
                     return
                 
                 bot.tree.clear_commands(guild=guild)
@@ -1120,7 +1127,7 @@ async def undeploy(interaction: discord.Interaction, scope: app_commands.Choice[
                 embed = create_embed("success", f"slash commands removed from {guild.name}")
             except ValueError:
                 embed = create_embed("error", "invalid guild ID format")
-                await interaction.response.send_message(embed=embed)
+                await interaction.followup.send(embed=embed)
                 return
         
         elif scope.value == "global":
@@ -1132,7 +1139,8 @@ async def undeploy(interaction: discord.Interaction, scope: app_commands.Choice[
     except Exception as e:
         embed = create_embed("error", f"failed to remove commands: {str(e)}")
     
-    await interaction.response.send_message(embed=embed)
+    # Use followup.send since we deferred the response
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="help", description="show available commands and conversions")
 async def help_command(interaction: discord.Interaction):
