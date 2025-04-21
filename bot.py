@@ -15,7 +15,7 @@ import itertools
 load_dotenv()
 
 LIGHT_PINK = 0xFFB6C1
-FOOTER_TEXT = "programmed by **@bossmannn**"
+FOOTER_TEXT = "programmed by @bossmannn"
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb+srv://caitbotdiscord:1ngyZvapJEBl6KOh@caitbot.cs5ao4g.mongodb.net/?retryWrites=true&w=majority&appName=caitbot')
 
 # Status rotation list
