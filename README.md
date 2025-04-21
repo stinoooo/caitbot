@@ -7,6 +7,7 @@ a discord bot that converts measurements, weight, and time across timezones with
 - convert measurements (cm, meter, feet, inches, etc.)
 - convert weights (kg, lbs, stone, etc.)
 - convert time with city/country selection and format choice
+- automatically detects and converts time mentions in messages
 - automatically handles daylight saving time transitions
 - smart country detection: only asks for city when needed
 - all responses in light pink embeds with dynamic discord timestamps
@@ -17,9 +18,10 @@ a discord bot that converts measurements, weight, and time across timezones with
 
 1. create a `.env` file based on `.env.example`
 2. add your discord bot token
-3. add your discord user id for owner commands
-4. install requirements: `pip install -r requirements.txt`
-5. run the bot: `python bot.py`
+3. add your discord user id for bossman commands
+4. add your mongodb uri (or keep the default)
+5. install requirements: `pip install -r requirements.txt`
+6. run the bot: `python bot.py`
 
 ## commands
 
@@ -36,12 +38,12 @@ a discord bot that converts measurements, weight, and time across timezones with
   - `format`: choose 12-hour or 24-hour format (default: 24h)
   - `direction`: convert "to destination" or "from destination" (default: to destination)
 
-### bossmans commands
-- `/deploy` - deploy commands with different scopes (owner only):
+### bossman's commands
+- `/deploy` - deploy commands with different scopes (bossman only):
   - `current server` - deploy to the current server you're in
   - `specific server` - deploy to a specific server by ID
   - `global` - deploy commands globally to all servers
-- `/undeploy` - remove commands with different scopes (owner only):
+- `/undeploy` - remove commands with different scopes (bossman only):
   - `current server` - remove from current server
   - `specific server` - remove from a specific server by ID
   - `global` - remove globally from all servers
@@ -60,10 +62,19 @@ a discord bot that converts measurements, weight, and time across timezones with
 - handles edge cases like arizona (no dst), china (single timezone), and territories
 
 ### quality of life
+- automatically detects time mentions in messages and converts them
 - city and country autocomplete for easier selection
-- persistent storage of user timezones
+- persistent storage of user timezones in mongodb
 - discord's dynamic timestamps show local time for everyone
 - help command showing all supported conversions
+
+### status rotation
+the bot rotates between these statuses every 5 minutes:
+- listening to caitlin
+- watching banjer
+- listening to lana del ray w caitlin
+- watching taylor swift on tt
+- playing with banjer
 
 ## deployment
 

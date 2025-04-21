@@ -1,20 +1,33 @@
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import os
 from dotenv import load_dotenv
 import pytz
 from datetime import datetime, timedelta
 import re
-import json
 from typing import Dict, List, Optional
 import asyncio
+import motor.motor_asyncio
+from pymongo import MongoClient
+import itertools
 
 load_dotenv()
 
 LIGHT_PINK = 0xFFB6C1
 FOOTER_TEXT = "programmed by **@bossmannn**"
-TIMEZONE_FILE = "user_timezones.json"
+MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb+srv://caitbotdiscord:1ngyZvapJEBl6KOh@caitbot.cs5ao4g.mongodb.net/?retryWrites=true&w=majority&appName=caitbot')
+
+# Status rotation list
+STATUS_LIST = [
+    ("listening", "caitlin"),
+    ("watching", "banjer"),
+    ("listening", "lana del ray w caitlin"),
+    ("watching", "taylor swift on tt"),
+    ("playing", "with banjer")
+    ("listening", "arctic monkeys w bossman"),
+
+]
 
 # Countries with single timezone
 COUNTRY_SINGLE_TIMEZONE = {
@@ -297,39 +310,149 @@ class CaitBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.messages = True  # Enable message events
         super().__init__(command_prefix='/', intents=intents, help_command=None)
-        self.user_timezones: Dict[int, str] = self.load_timezones()
+        self.db = None
+        self.status_cycle = itertools.cycle(STATUS_LIST)
         
-    def load_timezones(self) -> Dict[int, str]:
-        """Load timezones from file"""
-        if os.path.exists(TIMEZONE_FILE):
-            try:
-                with open(TIMEZONE_FILE, 'r') as f:
-                    # Convert string keys to integers when loading
-                    return {int(k): v for k, v in json.load(f).items()}
-            except Exception as e:
-                print(f"error loading timezones: {e}")
-                return {}
-        return {}
+    async def setup_mongodb(self):
+        """Setup MongoDB connection"""
+        client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
+        self.db = client.caitbot
+        self.timezones_collection = self.db.timezones
+        
+    async def get_user_timezone(self, user_id: int) -> Optional[str]:
+        """Get user timezone from MongoDB"""
+        if not self.db:
+            await self.setup_mongodb()
+        
+        user_data = await self.timezones_collection.find_one({"user_id": user_id})
+        return user_data.get("timezone") if user_data else None
     
-    def save_timezones(self):
-        """Save timezones to file"""
-        try:
-            # Convert integer keys to strings for JSON
-            data = {str(k): v for k, v in self.user_timezones.items()}
-            with open(TIMEZONE_FILE, 'w') as f:
-                json.dump(data, f, indent=2)
-        except Exception as e:
-            print(f"error saving timezones: {e}")
+    async def set_user_timezone(self, user_id: int, timezone: str):
+        """Save user timezone to MongoDB"""
+        if not self.db:
+            await self.setup_mongodb()
+        
+        await self.timezones_collection.update_one(
+            {"user_id": user_id},
+            {"$set": {"timezone": timezone}},
+            upsert=True
+        )
         
     async def setup_hook(self):
+        # Setup MongoDB connection
+        await self.setup_mongodb()
         # Deploy commands globally
         await self.tree.sync()
+        # Start the status rotation task
+        self.status_rotator.start()
         
     async def on_ready(self):
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="caitlin"))
         print(f'logged in as {self.user}')
         print(f'deployed slash commands globally')
+    
+    @tasks.loop(minutes=5)
+    async def status_rotator(self):
+        status_type, name = next(self.status_cycle)
+        
+        if status_type == "listening":
+            activity = discord.Activity(type=discord.ActivityType.listening, name=name)
+        elif status_type == "watching":
+            activity = discord.Activity(type=discord.ActivityType.watching, name=name)
+        elif status_type == "playing":
+            activity = discord.Activity(type=discord.ActivityType.playing, name=name)
+        
+        await self.change_presence(activity=activity)
+    
+    @status_rotator.before_loop
+    async def before_status_rotator(self):
+        await self.wait_until_ready()
+    
+    async def on_message(self, message):
+        # Don't respond to ourselves
+        if message.author == self.user:
+            return
+        
+        # Don't respond to bots
+        if message.author.bot:
+            return
+        
+        # Check if user has timezone set
+        user_timezone_str = await self.get_user_timezone(message.author.id)
+        if not user_timezone_str:
+            return
+        
+        # Look for time patterns in the message
+        time_patterns = [
+            # 24-hour format with colon
+            r'\b(\d{1,2}):(\d{2})\b',
+            # 12-hour format with AM/PM
+            r'\b(\d{1,2}):(\d{2})\s*([aApP][mM])\b',
+            # Single number (hours only, assumed 24-hour)
+            r'\b(\d{1,2})\s*([aApP][mM])\b',
+            # Single number between 0-23 (24-hour)
+            r'\b(0?\d|1\d|2[0-3])\b(?![\d:])',
+            # Single number 1-12 with AM/PM
+            r'\b(1[0-2]|0?[1-9])\s*([aApP][mM])\b'
+        ]
+        
+        times_found = []
+        content = message.content
+        
+        # Check each pattern
+        for pattern in time_patterns:
+            matches = re.finditer(pattern, content)
+            for match in matches:
+                # Parse the time from the match
+                time_str = match.group(0)
+                parsed_time = parse_time(time_str)
+                
+                if parsed_time:
+                    # Create timezone objects
+                    user_timezone = pytz.timezone(user_timezone_str)
+                    
+                    # Localize the time to user's timezone
+                    local_time = user_timezone.localize(parsed_time)
+                    
+                    # Convert to UTC timestamp for Discord's dynamic time format
+                    utc_time = local_time.astimezone(pytz.UTC)
+                    timestamp = int(utc_time.timestamp())
+                    
+                    # Format the time
+                    formatted_time = local_time.strftime("%H:%M")
+                    timezone_abbr = local_time.strftime("%Z")
+                    
+                    times_found.append({
+                        'original': time_str,
+                        'formatted': formatted_time,
+                        'timezone': timezone_abbr,
+                        'timestamp': timestamp
+                    })
+        
+        # If we found any times, respond with conversion
+        if times_found:
+            # Remove duplicates
+            unique_times = []
+            seen_timestamps = set()
+            
+            for time_info in times_found:
+                if time_info['timestamp'] not in seen_timestamps:
+                    seen_timestamps.add(time_info['timestamp'])
+                    unique_times.append(time_info)
+            
+            # Create response embed
+            embed = create_embed("time conversion", "")
+            
+            description = ""
+            for time_info in unique_times:
+                description += f"**above time ({time_info['formatted']} {time_info['timezone']}) in your local time** • <t:{time_info['timestamp']}:t>\n"
+            
+            embed.description = description.strip()
+            
+            # Reply to the original message
+            await message.reply(embed=embed, mention_author=False)
 
 bot = CaitBot()
 
@@ -504,6 +627,14 @@ def parse_time(time_str):
     
     now = datetime.now()
     
+    # First, check if it's just a number between 0-23 (24-hour format)
+    try:
+        hour = int(time_str)
+        if 0 <= hour <= 23:
+            return now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    except ValueError:
+        pass
+    
     for pattern, time_format in patterns:
         match = re.match(pattern, time_str)
         if match:
@@ -614,8 +745,7 @@ async def settimezone(interaction: discord.Interaction, timezone: str):
     try:
         # Validate the timezone
         pytz.timezone(timezone)
-        bot.user_timezones[interaction.user.id] = timezone
-        bot.save_timezones()  # Save to file
+        await bot.set_user_timezone(interaction.user.id, timezone)
         embed = create_embed("timezone set", f"your timezone has been set to {timezone}")
     except pytz.exceptions.UnknownTimeZoneError:
         embed = create_embed("error", f"'{timezone}' is not a valid timezone. please use a valid timezone like 'America/New_York' or 'Europe/London'")
@@ -624,7 +754,7 @@ async def settimezone(interaction: discord.Interaction, timezone: str):
 
 @bot.tree.command(name="mytimezone", description="show your currently set timezone")
 async def mytimezone(interaction: discord.Interaction):
-    user_timezone_str = bot.user_timezones.get(interaction.user.id)
+    user_timezone_str = await bot.get_user_timezone(interaction.user.id)
     
     if not user_timezone_str:
         embed = create_embed("timezone not set", "you haven't set your timezone yet. use /settimezone to set it.")
@@ -677,7 +807,7 @@ async def time_convert(
     format: app_commands.Choice[str] = None,
     direction: app_commands.Choice[str] = None
 ):
-    user_timezone_str = bot.user_timezones.get(interaction.user.id)
+    user_timezone_str = await bot.get_user_timezone(interaction.user.id)
     
     if not user_timezone_str:
         embed = create_embed("error", "please set your timezone first using /settimezone")
@@ -886,7 +1016,7 @@ async def deploy(interaction: discord.Interaction, scope: app_commands.Choice[st
 )
 async def undeploy(interaction: discord.Interaction, scope: app_commands.Choice[str], guild_id: str = None):
     if interaction.user.id != int(os.getenv('BOT_OWNER_ID', '0')):
-        embed = create_embed("error", "only bossman can use this command")
+        embed = create_embed("error", "only the bossman can use this command")
         await interaction.response.send_message(embed=embed)
         return
     
