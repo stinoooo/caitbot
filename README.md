@@ -75,6 +75,7 @@ the bot rotates between these statuses every 5 minutes:
 - listening to lana del ray w caitlin
 - watching taylor swift on tt
 - playing with banjer
+- listening to arctic monkeys w bossman
 
 ## deployment
 
