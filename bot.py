@@ -313,6 +313,7 @@ class CaitBot(commands.Bot):
         intents.messages = True  # Enable message events
         super().__init__(command_prefix='/', intents=intents, help_command=None)
         self.db = None
+        self.timezones_collection = None
         self.status_cycle = itertools.cycle(STATUS_LIST)
         
     async def setup_mongodb(self):
@@ -323,7 +324,7 @@ class CaitBot(commands.Bot):
         
     async def get_user_timezone(self, user_id: int) -> Optional[str]:
         """Get user timezone from MongoDB"""
-        if not self.db:
+        if self.db is None:
             await self.setup_mongodb()
         
         user_data = await self.timezones_collection.find_one({"user_id": user_id})
@@ -331,7 +332,7 @@ class CaitBot(commands.Bot):
     
     async def set_user_timezone(self, user_id: int, timezone: str):
         """Save user timezone to MongoDB"""
-        if not self.db:
+        if self.db is None:
             await self.setup_mongodb()
         
         await self.timezones_collection.update_one(
@@ -456,7 +457,7 @@ class CaitBot(commands.Bot):
 
 bot = CaitBot()
 
-# Weight conversion dictionaries
+# Weight conversion factors with both directions
 WEIGHT_CONVERSIONS = {
     'kg_to_lbs': 2.20462,
     'lbs_to_kg': 0.453592,
@@ -464,15 +465,27 @@ WEIGHT_CONVERSIONS = {
     'oz_to_g': 28.3495,
     'stone_to_kg': 6.35029,
     'kg_to_stone': 0.157473,
+    'stone_to_lbs': 14,
+    'lbs_to_stone': 0.0714286,
     'tonne_to_ton': 1.10231,
     'ton_to_tonne': 0.907185,
     'mg_to_g': 0.001,
     'g_to_mg': 1000,
     'kg_to_oz': 35.274,
-    'oz_to_kg': 0.0283495
+    'oz_to_kg': 0.0283495,
+    'g_to_kg': 0.001,
+    'kg_to_g': 1000,
+    'tonne_to_kg': 1000,
+    'kg_to_tonne': 0.001,
+    'ton_to_lbs': 2000,
+    'lbs_to_ton': 0.0005,
+    'tonne_to_lbs': 2204.62,
+    'lbs_to_tonne': 0.000453592,
+    'ton_to_kg': 907.185,
+    'kg_to_ton': 0.00110231,
 }
 
-# Length conversion dictionaries
+# Length conversion factors with both directions
 LENGTH_CONVERSIONS = {
     'cm_to_inch': 0.393701,
     'inch_to_cm': 2.54,
@@ -491,122 +504,37 @@ LENGTH_CONVERSIONS = {
     'mm_to_cm': 0.1,
     'cm_to_mm': 10,
     'nm_to_mile': 1.15078,
-    'mile_to_nm': 0.868976
+    'mile_to_nm': 0.868976,
+    'km_to_m': 1000,
+    'm_to_km': 0.001,
+    'mm_to_m': 0.001,
+    'm_to_mm': 1000,
+    'yard_to_ft': 3,
+    'ft_to_yard': 0.333333,
+    'mile_to_ft': 5280,
+    'ft_to_mile': 0.000189394,
+    'km_to_ft': 3280.84,
+    'ft_to_km': 0.0003048,
+    'cm_to_ft': 0.0328084,
+    'ft_to_cm': 30.48,
+    'mm_to_ft': 0.00328084,
+    'ft_to_mm': 304.8,
+    'yard_to_inch': 36,
+    'inch_to_yard': 0.0277778,
+    'mile_to_yard': 1760,
+    'yard_to_mile': 0.000568182,
+    'km_to_yard': 1093.61,
+    'yard_to_km': 0.0009144,
+    'cm_to_yard': 0.0109361,
+    'yard_to_cm': 91.44,
+    'mm_to_yard': 0.00109361,
+    'yard_to_mm': 914.4,
 }
 
 def create_embed(title, description):
     embed = discord.Embed(title=title, description=description, color=LIGHT_PINK)
     embed.set_footer(text=FOOTER_TEXT)
     return embed
-
-@bot.tree.command(name="convert", description="convert between different units")
-@app_commands.describe(
-    category="the category of conversion (length/weight)", 
-    value="the value to convert",
-    from_unit="the unit you're converting from",
-    to_unit="the unit you're converting to"
-)
-@app_commands.choices(
-    category=[
-        app_commands.Choice(name="length", value="length"),
-        app_commands.Choice(name="weight", value="weight")
-    ]
-)
-async def convert(interaction: discord.Interaction, category: app_commands.Choice[str], value: float, from_unit: str, to_unit: str):
-    category_value = category.value.lower()
-    from_unit = from_unit.lower()
-    to_unit = to_unit.lower()
-    
-    # Add support for variations of unit names
-    unit_variations = {
-        'meter': 'm',
-        'meters': 'm',
-        'metre': 'm',
-        'metres': 'm',
-        'centimeter': 'cm',
-        'centimeters': 'cm',
-        'centimetre': 'cm',
-        'centimetres': 'cm',
-        'millimeter': 'mm',
-        'millimeters': 'mm',
-        'millimetre': 'mm',
-        'millimetres': 'mm',
-        'kilometer': 'km',
-        'kilometers': 'km',
-        'kilometre': 'km',
-        'kilometres': 'km',
-        'inches': 'inch',
-        'feet': 'ft',
-        'foot': 'ft',
-        'yards': 'yard',
-        'miles': 'mile',
-        'nmi': 'nm',
-        'nautical mile': 'nm',
-        
-        'kilogram': 'kg',
-        'kilograms': 'kg',
-        'kilo': 'kg',
-        'kilos': 'kg',
-        'gram': 'g',
-        'grams': 'g',
-        'milligram': 'mg',
-        'milligrams': 'mg',
-        'pound': 'lbs',
-        'pounds': 'lbs',
-        'lb': 'lbs',
-        'ounce': 'oz',
-        'ounces': 'oz',
-        'stones': 'stone',
-        'metric ton': 'tonne',
-        'metric tons': 'tonne',
-        'tonnes': 'tonne',
-        'us ton': 'ton',
-        'us tons': 'ton',
-        'tons': 'ton'
-    }
-    
-    # Convert unit variations to standard unit names
-    from_unit = unit_variations.get(from_unit, from_unit)
-    to_unit = unit_variations.get(to_unit, to_unit)
-    
-    if category_value == "length":
-        conversion_key = f"{from_unit}_to_{to_unit}"
-        if conversion_key in LENGTH_CONVERSIONS:
-            result = value * LENGTH_CONVERSIONS[conversion_key]
-            # Format result based on magnitude
-            if result < 0.01:
-                formatted_result = f"{result:.6f}"
-            elif result < 1:
-                formatted_result = f"{result:.4f}"
-            elif result < 100:
-                formatted_result = f"{result:.2f}"
-            else:
-                formatted_result = f"{result:.1f}"
-            embed = create_embed("conversion result", f"{value} {from_unit} = {formatted_result} {to_unit}")
-        else:
-            embed = create_embed("error", f"conversion from {from_unit} to {to_unit} not supported")
-    
-    elif category_value == "weight":
-        conversion_key = f"{from_unit}_to_{to_unit}"
-        if conversion_key in WEIGHT_CONVERSIONS:
-            result = value * WEIGHT_CONVERSIONS[conversion_key]
-            # Format result based on magnitude
-            if result < 0.01:
-                formatted_result = f"{result:.6f}"
-            elif result < 1:
-                formatted_result = f"{result:.4f}"
-            elif result < 100:
-                formatted_result = f"{result:.2f}"
-            else:
-                formatted_result = f"{result:.1f}"
-            embed = create_embed("conversion result", f"{value} {from_unit} = {formatted_result} {to_unit}")
-        else:
-            embed = create_embed("error", f"conversion from {from_unit} to {to_unit} not supported")
-    
-    else:
-        embed = create_embed("error", "please specify 'length' or 'weight' as the category")
-    
-    await interaction.response.send_message(embed=embed)
 
 def parse_time(time_str):
     """Parse various time formats and return datetime object"""
@@ -654,6 +582,25 @@ def parse_time(time_str):
     
     return None
 
+def get_all_cities():
+    """Get all cities from both single timezone and multi timezone countries"""
+    cities = []
+    
+    # Add cities from multi-timezone countries
+    for country_cities in COUNTRY_MULTI_TIMEZONE.values():
+        cities.extend(country_cities.keys())
+    
+    return cities
+
+def find_city_timezone(city_name):
+    """Find timezone for a city from all available data"""
+    # Check in multi-timezone countries
+    for country_cities in COUNTRY_MULTI_TIMEZONE.values():
+        if city_name in country_cities:
+            return country_cities[city_name]
+    
+    return None
+
 async def timezone_autocomplete(
     interaction: discord.Interaction,
     current: str,
@@ -685,16 +632,6 @@ async def timezone_autocomplete(
         app_commands.Choice(name=tz, value=tz)
         for tz in matches
     ][:25]  # Discord limits to 25 choices
-
-def get_all_cities():
-    """Get all cities from both single timezone and multi timezone countries"""
-    cities = []
-    
-    # Add cities from multi-timezone countries
-    for country_cities in COUNTRY_MULTI_TIMEZONE.values():
-        cities.extend(country_cities.keys())
-    
-    return cities
 
 async def city_autocomplete(
     interaction: discord.Interaction,
@@ -738,6 +675,152 @@ async def country_autocomplete(
         for country in matches
     ][:25]
 
+@bot.tree.command(name="convert", description="convert between different units")
+@app_commands.describe(
+    category="the category of conversion (length/weight)", 
+    value="the value to convert",
+    from_unit="the unit you're converting from",
+    to_unit="the unit you're converting to"
+)
+@app_commands.choices(
+    category=[
+        app_commands.Choice(name="length", value="length"),
+        app_commands.Choice(name="weight", value="weight")
+    ]
+)
+async def convert(interaction: discord.Interaction, category: app_commands.Choice[str], value: float, from_unit: str, to_unit: str):
+    category_value = category.value.lower()
+    from_unit = from_unit.lower()
+    to_unit = to_unit.lower()
+    
+    # Add support for variations of unit names
+    unit_variations = {
+        'meter': 'm',
+        'meters': 'm',
+        'metre': 'm',
+        'metres': 'm',
+        'centimeter': 'cm',
+        'centimeters': 'cm',
+        'centimetre': 'cm',
+        'centimetres': 'cm',
+        'millimeter': 'mm',
+        'millimeters': 'mm',
+        'millimetre': 'mm',
+        'millimetres': 'mm',
+        'kilometer': 'km',
+        'kilometers': 'km',
+        'kilometre': 'km',
+        'kilometres': 'km',
+        'inches': 'inch',
+        'feet': 'ft',
+        'foot': 'ft',
+        'yards': 'yard',
+        'miles': 'mile',
+        'nmi': 'nm',
+        'nautical mile': 'nm',
+        'nautical miles': 'nm',
+        'in': 'inch',
+        'mi': 'mile',
+        'yd': 'yard',
+        'yds': 'yard',
+        
+        'kilogram': 'kg',
+        'kilograms': 'kg',
+        'kilo': 'kg',
+        'kilos': 'kg',
+        'gram': 'g',
+        'grams': 'g',
+        'milligram': 'mg',
+        'milligrams': 'mg',
+        'pound': 'lbs',
+        'pounds': 'lbs',
+        'lb': 'lbs',
+        'ounce': 'oz',
+        'ounces': 'oz',
+        'stones': 'stone',
+        'metric ton': 'tonne',
+        'metric tons': 'tonne',
+        'tonnes': 'tonne',
+        'us ton': 'ton',
+        'us tons': 'ton',
+        'tons': 'ton',
+        't': 'tonne',
+        'st': 'stone',
+    }
+    
+    # Convert unit variations to standard unit names
+    from_unit = unit_variations.get(from_unit, from_unit)
+    to_unit = unit_variations.get(to_unit, to_unit)
+    
+    # Handle same unit conversions
+    if from_unit == to_unit:
+        embed = create_embed("conversion result", f"{value} {from_unit} = {value} {to_unit}")
+        await interaction.response.send_message(embed=embed)
+        return
+    
+    if category_value == "length":
+        conversion_key = f"{from_unit}_to_{to_unit}"
+        
+        # Try direct conversion
+        if conversion_key in LENGTH_CONVERSIONS:
+            result = value * LENGTH_CONVERSIONS[conversion_key]
+        else:
+            # Try finding an indirect conversion path through meters
+            from_to_m = f"{from_unit}_to_m"
+            m_to_target = f"m_to_{to_unit}"
+            
+            if from_to_m in LENGTH_CONVERSIONS and m_to_target in LENGTH_CONVERSIONS:
+                result = value * LENGTH_CONVERSIONS[from_to_m] * LENGTH_CONVERSIONS[m_to_target]
+            else:
+                embed = create_embed("error", f"conversion from {from_unit} to {to_unit} not supported")
+                await interaction.response.send_message(embed=embed)
+                return
+        
+        # Format result based on magnitude
+        if result < 0.01:
+            formatted_result = f"{result:.6f}"
+        elif result < 1:
+            formatted_result = f"{result:.4f}"
+        elif result < 100:
+            formatted_result = f"{result:.2f}"
+        else:
+            formatted_result = f"{result:.1f}"
+        embed = create_embed("conversion result", f"{value} {from_unit} = {formatted_result} {to_unit}")
+    
+    elif category_value == "weight":
+        conversion_key = f"{from_unit}_to_{to_unit}"
+        
+        # Try direct conversion
+        if conversion_key in WEIGHT_CONVERSIONS:
+            result = value * WEIGHT_CONVERSIONS[conversion_key]
+        else:
+            # Try finding an indirect conversion path through kilograms
+            from_to_kg = f"{from_unit}_to_kg"
+            kg_to_target = f"kg_to_{to_unit}"
+            
+            if from_to_kg in WEIGHT_CONVERSIONS and kg_to_target in WEIGHT_CONVERSIONS:
+                result = value * WEIGHT_CONVERSIONS[from_to_kg] * WEIGHT_CONVERSIONS[kg_to_target]
+            else:
+                embed = create_embed("error", f"conversion from {from_unit} to {to_unit} not supported")
+                await interaction.response.send_message(embed=embed)
+                return
+        
+        # Format result based on magnitude
+        if result < 0.01:
+            formatted_result = f"{result:.6f}"
+        elif result < 1:
+            formatted_result = f"{result:.4f}"
+        elif result < 100:
+            formatted_result = f"{result:.2f}"
+        else:
+            formatted_result = f"{result:.1f}"
+        embed = create_embed("conversion result", f"{value} {from_unit} = {formatted_result} {to_unit}")
+    
+    else:
+        embed = create_embed("error", "please specify 'length' or 'weight' as the category")
+    
+    await interaction.response.send_message(embed=embed)
+
 @bot.tree.command(name="settimezone", description="set your timezone for time conversions")
 @app_commands.describe(timezone="your timezone (e.g., 'America/New_York', 'Europe/London', 'Asia/Tokyo')")
 @app_commands.autocomplete(timezone=timezone_autocomplete)
@@ -770,15 +853,6 @@ async def mytimezone(interaction: discord.Interaction):
         )
     
     await interaction.response.send_message(embed=embed)
-
-def find_city_timezone(city_name):
-    """Find timezone for a city from all available data"""
-    # Check in multi-timezone countries
-    for country_cities in COUNTRY_MULTI_TIMEZONE.values():
-        if city_name in country_cities:
-            return country_cities[city_name]
-    
-    return None
 
 @bot.tree.command(name="time", description="convert time between timezones with city/country selection")
 @app_commands.describe(
